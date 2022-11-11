@@ -38,7 +38,7 @@ Dongmin Jung
 
 
 \seealso{
-keras::keras_model_sequentia, keras::layer_embedding, keras::layer_gru,
+keras::keras_model, keras::layer_input, keras::layer_embedding, keras::layer_gru,
 keras::bidirectional, keras::layer_dense, keras::compile
 }
 
