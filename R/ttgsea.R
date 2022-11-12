@@ -45,14 +45,16 @@ metric_pearson_correlation <- function(y_true, y_pred) {
 
 
 bi_lstm <- function(num_tokens, embedding_dim, length_seq, num_units) {
-    model <- keras::keras_model_sequential() %>% 
+    input <- keras::layer_input(shape = length_seq)
+    output <- input %>%
       keras::layer_embedding(input_dim = num_tokens + 1,
                              output_dim = embedding_dim,
                              input_length = length_seq,
-                             mask_zero = TRUE) %>% 
+                             mask_zero = TRUE) %>%
       keras::bidirectional(keras::layer_lstm(units = num_units,
                                              activation = "relu")) %>%
       keras::layer_dense(1)
+    model <- keras::keras_model(inputs = input, outputs = output)
     model %>%
       keras::compile(loss = "mean_squared_error", optimizer = "adam",
                      metrics = custom_metric("pearson_correlation",
@@ -63,14 +65,16 @@ bi_lstm <- function(num_tokens, embedding_dim, length_seq, num_units) {
 
 
 bi_gru <- function(num_tokens, embedding_dim, length_seq, num_units) {
-    model <- keras::keras_model_sequential() %>%
+    input <- keras::layer_input(shape = length_seq)
+    output <- input %>%
       keras::layer_embedding(input_dim = num_tokens + 1,
                              output_dim = embedding_dim,
                              input_length = length_seq,
                              mask_zero = TRUE) %>%
-      keras::bidirectional(keras::layer_gru(units = num_units,
-                                            activation = "relu")) %>%
-      keras::layer_dense(1)
+    keras::bidirectional(keras::layer_gru(units = num_units,
+                                          activation = "relu")) %>%
+    keras::layer_dense(1)
+    model <- keras::keras_model(inputs = input, outputs = output)
     model %>%
       keras::compile(loss = "mean_squared_error", optimizer = "adam",
                      metrics = custom_metric("pearson_correlation",
@@ -103,11 +107,11 @@ fit_model <- function(gseaRes, text, score, model, ngram_min = 1, ngram_max = 2,
     
     message("model fitting...")
     if(use_generator) {
-      model %>% keras::fit_generator(sampling_generator(as.matrix(x_train), 
-                                                        as.matrix(y_train),
-                                                        batch_size = batch_size),
-                                     steps_per_epoch = nrow(x_train)/batch_size, 
-                                     epochs, ...)
+      model %>% keras::fit(sampling_generator(as.matrix(x_train), 
+                                              as.matrix(y_train),
+                                              batch_size = batch_size),
+                           steps_per_epoch = nrow(x_train)/batch_size, 
+                           epochs, ...)
     } else {
       model %>% keras::fit(x_train, y_train, batch_size, epochs, ...)
     }

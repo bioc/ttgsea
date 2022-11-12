@@ -87,31 +87,33 @@ data.table::data.table(fgseaRes[order(fgseaRes$NES, decreasing = TRUE),])
 Since deep learning architectures are incapable of processing characters or words in their raw form, the text needs to be converted to numbers as inputs. Word embeddings are the texts converted into numbers. For tokenization, unigram and bigram sequences are used as default. An integer is assigned to each token, and then each term is converted to a sequence of integers. The sequences that are longer than the given maximum length are truncated, whereas shorter sequences are padded with zeros. Keras is a higher-level library built on top of TensorFlow. It is available in R through the keras package. The input to the Keras embedding are integers. These integers are of the tokens. This representation is passed to the embedding layer. The embedding layer acts as the first hidden layer of the neural network.
 
 ```{r, fig.align='center', message=FALSE, warning=FALSE, eval=TRUE}
-# model parameters
-num_tokens <- 1000
-length_seq <- 30
-batch_size <- 32
-embedding_dim <- 50
-num_units <- 32
-epochs <- 10
-
-# algorithm
-ttgseaRes <- fit_model(fgseaRes, "pathway", "NES",
-                       model = bi_lstm(num_tokens, embedding_dim,
-                                       length_seq, num_units),
-                       num_tokens = num_tokens,
-                       length_seq = length_seq,
-                       epochs = epochs,
-                       batch_size = batch_size,
-                       use_generator = FALSE,
-                       callbacks = keras::callback_early_stopping(
-                          monitor = "loss",
-                          patience = 10,
-                          restore_best_weights = TRUE))
-
-# prediction for every token
-ttgseaRes$token_pred
-ttgseaRes$token_gsea[["TGF beta"]][,1:5]
+if (keras::is_keras_available() & reticulate::py_available()) {
+  # model parameters
+  num_tokens <- 1000
+  length_seq <- 30
+  batch_size <- 32
+  embedding_dim <- 50
+  num_units <- 32
+  epochs <- 10
+  
+  # algorithm
+  ttgseaRes <- fit_model(fgseaRes, "pathway", "NES",
+                         model = bi_lstm(num_tokens, embedding_dim,
+                                         length_seq, num_units),
+                         num_tokens = num_tokens,
+                         length_seq = length_seq,
+                         epochs = epochs,
+                         batch_size = batch_size,
+                         use_generator = FALSE,
+                         callbacks = keras::callback_early_stopping(
+                            monitor = "loss",
+                            patience = 10,
+                            restore_best_weights = TRUE))
+  
+  # prediction for every token
+  ttgseaRes$token_pred
+  ttgseaRes$token_gsea[["TGF beta"]][,1:5]
+}
 ```
 
 
@@ -166,39 +168,41 @@ if (exists("ttgseaRes")) {
 Take another exmaple. A set of names of ranked genes can be seen as sequential data. In the result of GSEA, names of leading edge genes for each gene set are given. The leading edge subset contains genes which contribute most to the enrichment score. Thus the scores of one or more genes of the leading edge subset can be predicted.
 
 ```{r, fig.align='center', message=FALSE, warning=FALSE, eval=FALSE}
-# leading edge
-LE <- unlist(lapply(fgseaRes$leadingEdge, function(x) gsub(",", "", toString(x))))
-fgseaRes <- cbind(fgseaRes, LE)
-
-# model parameters
-num_tokens <- 1000
-length_seq <- 30
-batch_size <- 32
-embedding_dim <- 50
-num_units <- 32
-epochs <- 10
-
-# algorithm
-ttgseaRes <- fit_model(fgseaRes, "LE", "NES",
-                       model = bi_lstm(num_tokens, embedding_dim,
-                                       length_seq, num_units),
-                       num_tokens = num_tokens,
-                       length_seq = length_seq,
-                       epochs = epochs,
-                       batch_size = batch_size,
-                       verbose = 0,
-                       callbacks = callback_early_stopping(
-                          monitor = "loss",
-                          patience = 5,
-                          restore_best_weights = TRUE))
-
-# prediction for every token
-ttgseaRes$token_pred
-
-# prediction with MC p-value
-set.seed(1)
-new_text <- c("107995 56150", "16952")
-predict_model(ttgseaRes, new_text)
+if (keras::is_keras_available() & reticulate::py_available()) {
+  # leading edge
+  LE <- unlist(lapply(fgseaRes$leadingEdge, function(x) gsub(",", "", toString(x))))
+  fgseaRes <- cbind(fgseaRes, LE)
+  
+  # model parameters
+  num_tokens <- 1000
+  length_seq <- 30
+  batch_size <- 32
+  embedding_dim <- 50
+  num_units <- 32
+  epochs <- 10
+  
+  # algorithm
+  ttgseaRes <- fit_model(fgseaRes, "LE", "NES",
+                         model = bi_lstm(num_tokens, embedding_dim,
+                                         length_seq, num_units),
+                         num_tokens = num_tokens,
+                         length_seq = length_seq,
+                         epochs = epochs,
+                         batch_size = batch_size,
+                         verbose = 0,
+                         callbacks = callback_early_stopping(
+                            monitor = "loss",
+                            patience = 5,
+                            restore_best_weights = TRUE))
+  
+  # prediction for every token
+  ttgseaRes$token_pred
+  
+  # prediction with MC p-value
+  set.seed(1)
+  new_text <- c("107995 56150", "16952")
+  predict_model(ttgseaRes, new_text)
+}
 ```
 
 
@@ -217,67 +221,69 @@ The "airway" dataset has four cell lines with two conditions, control and treatm
 
 
 ```{r, fig.align='center', message=FALSE, warning=FALSE, eval=FALSE}
-## data preparation
-library(airway)
-data(airway)
-
-## differentially expressed genes
-library(DESeq2)
-des <- DESeqDataSet(airway, design = ~ dex)
-des <- DESeq(des)
-res <- results(des)
-head(res)
-# log2FC used for GSEA
-statistic <- res$"log2FoldChange"
-names(statistic) <- rownames(res)
-statistic <- na.omit(statistic)
-head(statistic)
-
-## gene set
-library(org.Hs.eg.db)
-library(BiocSet)
-go <- go_sets(org.Hs.eg.db, "ENSEMBL", ontology = "BP")
-go <- as(go, "list")
-# convert GO id to term name
-library(GO.db)
-names(go) <- Term(GOTERM)[names(go)]
-
-## GSEA
-library(fgsea)
-set.seed(1)
-fgseaRes <- fgsea(go, statistic)
-head(fgseaRes)
-
-## tokenizing text of GSEA
-# model parameters
-num_tokens <- 5000
-length_seq <- 30
-batch_size <- 64
-embedding_dim <- 128
-num_units <- 32
-epochs <- 20
-# algorithm
-ttgseaRes <- fit_model(fgseaRes, "pathway", "NES",
-                       model = bi_lstm(num_tokens, embedding_dim,
-                                       length_seq, num_units),
-                       num_tokens = num_tokens,
-                       length_seq = length_seq,
-                       epochs = epochs,
-                       batch_size = batch_size,
-                       callbacks = keras::callback_early_stopping(
-                         monitor = "loss",
-                         patience = 5,
-                         restore_best_weights = TRUE))
-# prediction
-ttgseaRes$token_pred
-set.seed(1)
-predict_model(ttgseaRes, c("translation response",
-                           "cytokine activity",
-                           "rhodopsin mediate",
-                           "granzyme",
-                           "histone deacetylation",
-                           "helper T cell",
-                           "Wnt"))
+if (keras::is_keras_available() & reticulate::py_available()) {
+  ## data preparation
+  library(airway)
+  data(airway)
+  
+  ## differentially expressed genes
+  library(DESeq2)
+  des <- DESeqDataSet(airway, design = ~ dex)
+  des <- DESeq(des)
+  res <- results(des)
+  head(res)
+  # log2FC used for GSEA
+  statistic <- res$"log2FoldChange"
+  names(statistic) <- rownames(res)
+  statistic <- na.omit(statistic)
+  head(statistic)
+  
+  ## gene set
+  library(org.Hs.eg.db)
+  library(BiocSet)
+  go <- go_sets(org.Hs.eg.db, "ENSEMBL", ontology = "BP")
+  go <- as(go, "list")
+  # convert GO id to term name
+  library(GO.db)
+  names(go) <- Term(GOTERM)[names(go)]
+  
+  ## GSEA
+  library(fgsea)
+  set.seed(1)
+  fgseaRes <- fgsea(go, statistic)
+  head(fgseaRes)
+  
+  ## tokenizing text of GSEA
+  # model parameters
+  num_tokens <- 5000
+  length_seq <- 30
+  batch_size <- 64
+  embedding_dim <- 128
+  num_units <- 32
+  epochs <- 20
+  # algorithm
+  ttgseaRes <- fit_model(fgseaRes, "pathway", "NES",
+                         model = bi_lstm(num_tokens, embedding_dim,
+                                         length_seq, num_units),
+                         num_tokens = num_tokens,
+                         length_seq = length_seq,
+                         epochs = epochs,
+                         batch_size = batch_size,
+                         callbacks = keras::callback_early_stopping(
+                           monitor = "loss",
+                           patience = 5,
+                           restore_best_weights = TRUE))
+  # prediction
+  ttgseaRes$token_pred
+  set.seed(1)
+  predict_model(ttgseaRes, c("translation response",
+                             "cytokine activity",
+                             "rhodopsin mediate",
+                             "granzyme",
+                             "histone deacetylation",
+                             "helper T cell",
+                             "Wnt"))
+}
 ```
 
 
